@@ -375,62 +375,29 @@ def send_with_sleep(assignments):
 # === MAIN ===
 
 def main():
-    # 1) Hent dagens levels
-    current_levels = fetch_levels()
-
-    # 2) Læs tidligere snapshot + blacklist
-    prev_levels = load_previous_levels()
-    blacklist = load_blacklist()
-
-    # 3) Udregn aktive spillere
-    active_players = get_active_players(prev_levels, current_levels)
-
-    # 4) Kandidat-pool blandt de mest forbedrede, ekskl. blacklistede spillere
-    candidates = choose_winner_pool(active_players, blacklist, pool_size=50)
-
-    if not candidates:
-        print("[INFO] Ingen kandidater i dag. Gemmer kun snapshot + blacklist.")
-        save_today_levels(current_levels)
-        save_blacklist(blacklist)
-        return
-
-    # 5) Træk vindere
-    winners = pick_winners(candidates, count=10)
-
-    if not winners:
-        print("[INFO] Ingen vindere trukket (for få kandidater?).")
-        save_today_levels(current_levels)
-        save_blacklist(blacklist)
-        return
-
-    # 6) Giv dem skæve tider mellem 12 og 17, min. 10 min imellem
-    assignments = assign_random_times(
-        winners,
-        start_hour=12,
-        end_hour=17,
-        min_gap_minutes=10,
+    # Midlertidig test: send KUN én besked til Poopguy
+    test_name = "Poopguy"
+    msg = (
+        f"Guild invitation\n"
+        f"Greetings Poopguy.\n\n"
+        f"I am contacting you because your level and activity speak for themselves.\n"
+        f"Our guild Spaceengineers is recruiting only strong, dedicated players who want real progress.\n\n"
+        f"We are ambitious, disciplined and active every day.\n"
+        f"We win attacks, we win defenses, and we rise steadily through the rankings.\n"
+        f"Members who join us grow fast, because everyone contributes and everyone plays.\n\n"
+        f"If you want a guild that does not waste time, that expects effort and rewards commitment, then you will fit in perfectly with us.\n\n"
+        f"Should you choose to join, you must send a message to any of the officers in Spaceengineers, and they will add you to the guild.\n"
+        f"If not, I respect your decision.\n\n"
+        f"The invitation is open.\n\n"
     )
 
-    if not assignments:
-        print("[WARN] Ingen assignments genereret – gemmer kun snapshot + blacklist.")
-        save_today_levels(current_levels)
-        save_blacklist(blacklist)
-        return
+    print(f"[INFO] Sender testbesked til {test_name!r}...")
+    try:
+        send_sf_message(test_name, msg)
+        print("[INFO] Testbesked sendt uden fejl.")
+    except Exception as e:
+        print(f"[ERROR] Kunne ikke sende testbesked: {e}")
 
-    # 7) Gem dagens snapshot med det samme
-    save_today_levels(current_levels)
-
-    # 8) Send beskeder med sleep, og opdater blacklist
-    sent_names = send_with_sleep(assignments)
-
-    # Kun blacklist’e dem, hvor vi reelt fik sendt en besked
-    for name in sent_names:
-        blacklist.add(name)
-
-    save_blacklist(blacklist)
-    print("[INFO] Scriptet er færdigt.")
-    
-    print(f"Found {len(current_levels)} current players")
 
 if __name__ == "__main__":
     main()
