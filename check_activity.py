@@ -295,11 +295,17 @@ def build_message(assignment):
     to_lvl = assignment["to"]
 
     return (
-        f"Hej {name}!\n\n"
-        f"Tillykke! Du er blandt dagens vindere i XP-konkurrencen.\n"
-        f"Du er gået fra level {from_lvl} til {to_lvl} (+{delta}).\n"
-        f"Din tid er ca. {time_str}.\n\n"
-        f"God fornøjelse!"
+        f"Guild invitation\n"
+        f"Greetings {name}.\n\n"
+        f"I am contacting you because your level and activity speak for themselves.\n"
+        f"Our guild Spaceengineers is recruiting only strong, dedicated players who want real progress.\n\n"
+        f"We are ambitious, disciplined and active every day.\n"
+        f"We win attacks, we win defenses, and we rise steadily through the rankings.\n"
+        f"Members who join us grow fast, because everyone contributes and everyone plays.\n\n"
+        f"If you want a guild that does not waste time, that expects effort and rewards commitment, then you will fit in perfectly with us.\n\n"
+        f"Should you choose to join, you must send a message to any of the officers in Spaceengineers, and they will add you to the guild.\n"
+        f"If not, I respect your decision.\n\n"
+        f"The invitation is open.\n\n"
     )
 
 
