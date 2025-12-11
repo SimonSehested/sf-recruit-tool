@@ -29,30 +29,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .next()
         .ok_or("Ingen karakterer fundet på denne S&F account")?;
 
-    // Lige et almindeligt update først
+    // Almindeligt update først
     let _gs = session.send_command(Command::Update).await?;
 
     let mut result: Vec<PlayerInfo> = Vec::new();
 
     for page in 0..MAX_PAGES {
-        eprintln!("Henter Hall of Fame side {page}...");
-
-        // Håndtér fejl pænt (ingen panik / crash)
         let gs_page = match session
             .send_command(Command::HallOfFamePage { page })
             .await
         {
             Ok(gs_page) => gs_page,
             Err(e) => {
+                // Ved fejl stopper vi pænt og bruger de data vi har
                 eprintln!("Fejl ved hentning af Hall of Fame side {page}: {e}");
-                // typisk her du så 'ServerError(\"server not available\")' før
-                // nu stopper vi bare og bruger det, vi allerede har
                 break;
             }
         };
 
         let players = &gs_page.hall_of_fames.players;
-        eprintln!("Side {page}: fik {} spillere", players.len());
 
         // Tom side = vi er forbi sidste side → stop
         if players.is_empty() {
@@ -60,8 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         for p in players {
-            // 🔥 Level-filter er droppet – vi stoler på at alle i top 5000 er > 100
-            // stadig kun spillere uden guild (rekrutterbare)
+            // Stadig kun spillere uden guild (rekrutterbare)
             if p.guild.is_none() {
                 result.push(PlayerInfo {
                     name: p.name.clone(),

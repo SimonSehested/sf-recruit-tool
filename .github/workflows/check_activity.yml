@@ -1,0 +1,50 @@
+name: Check SF activity
+
+on:
+  # Kør hver nat kl. 00:00 UTC
+  schedule:
+    - cron: "0 0 * * *"
+  # Mulighed for at trigge manuelt fra GitHub UI
+  workflow_dispatch:
+
+jobs:
+  check-activity:
+    runs-on: ubuntu-latest
+
+    env:
+      # Brug GitHub Secrets til dine login-oplysninger
+      SF_USERNAME: ${{ secrets.SF_USERNAME }}
+      SF_PASSWORD: ${{ secrets.SF_PASSWORD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build sf_fetcher (release)
+        working-directory: sf_fetcher
+        run: cargo build --release
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Kun hvis du har requirements.txt – ellers kan du bare slette dette step
+      - name: Install Python dependencies
+        if: hashFiles('requirements.txt') != ''
+        run: pip install -r requirements.txt
+
+      - name: Run check_activity script
+        run: python check_activity.py
+
+      # Valgfrit: gem output-snapshot som artifact så du kan hente den fra Actions UI
+      - name: Upload levels snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: levels-latest
+          path: data/levels_latest.json
+          if-no-files-found: ignore
