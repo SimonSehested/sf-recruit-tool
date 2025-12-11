@@ -9,6 +9,9 @@ struct PlayerInfo {
     level: u32,
 }
 
+// ~5000 spillere / 50–51 pr. side ≈ 100 sider
+const MAX_PAGES: usize = 100;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
@@ -26,37 +29,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .next()
         .ok_or("Ingen karakterer fundet på denne S&F account")?;
 
-    // Først lige et almindeligt update (ikke strengt nødvendigt,
-    // men rart at have en frisk GameState)
+    // Lige et almindeligt update først
     let _gs = session.send_command(Command::Update).await?;
 
     let mut result: Vec<PlayerInfo> = Vec::new();
-    let mut page: usize = 0;
 
-    loop {
-        // Hent én side Hall of Fame (spillere)
-        let gs_page = session
+    for page in 0..MAX_PAGES {
+        eprintln!("Henter Hall of Fame side {page}...");
+
+        // Håndtér fejl pænt (ingen panik / crash)
+        let gs_page = match session
             .send_command(Command::HallOfFamePage { page })
-            .await?;
+            .await
+        {
+            Ok(gs_page) => gs_page,
+            Err(e) => {
+                eprintln!("Fejl ved hentning af Hall of Fame side {page}: {e}");
+                // typisk her du så 'ServerError(\"server not available\")' før
+                // nu stopper vi bare og bruger det, vi allerede har
+                break;
+            }
+        };
 
         let players = &gs_page.hall_of_fames.players;
+        eprintln!("Side {page}: fik {} spillere", players.len());
 
-        // Hvis siden er tom, er vi nået forbi sidste side
+        // Tom side = vi er forbi sidste side → stop
         if players.is_empty() {
             break;
         }
 
         for p in players {
-            // p.guild == None => ikke i et guild
-            if p.level > 100 && p.guild.is_none() {
+            // 🔥 Level-filter er droppet – vi stoler på at alle i top 5000 er > 100
+            // stadig kun spillere uden guild (rekrutterbare)
+            if p.guild.is_none() {
                 result.push(PlayerInfo {
                     name: p.name.clone(),
                     level: p.level,
                 });
             }
         }
-
-        page += 1;
     }
 
     let json = serde_json::to_string_pretty(&result)?;
