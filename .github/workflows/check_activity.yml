@@ -40,11 +40,12 @@ jobs:
       - name: Run check_activity script
         run: python check_activity.py
 
-      # Valgfrit: gem output-snapshot som artifact så du kan hente den fra Actions UI
-      - name: Upload levels snapshot
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: levels-latest
-          path: data/levels_latest.json
-          if-no-files-found: ignore
+      - name: Commit updated levels snapshot
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+          git add data/levels_latest.json
+          git commit -m "Daily levels snapshot" || echo "No changes"
+
+          git push
