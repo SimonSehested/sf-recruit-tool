@@ -9,8 +9,8 @@ struct PlayerInfo {
     level: u32,
 }
 
-// ~5000 spillere / 50–51 pr. side ≈ 100 sider
-const MAX_PAGES: usize = 100;
+// ~10000 spillere / 50–51 pr. side ≈ 200 sider
+const MAX_PAGES: usize = 200;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

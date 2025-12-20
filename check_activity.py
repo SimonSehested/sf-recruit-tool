@@ -1,7 +1,7 @@
 import os
-from pathlib import Path
 import json
 import subprocess
+from pathlib import Path
 
 ROOT = Path(__file__).parent
 
@@ -12,6 +12,21 @@ DATA_DIR = ROOT / "data"
 SNAPSHOT_PATH = DATA_DIR / "levels_latest.json"
 
 
+def _normalize_levels(items):
+    """Returnér liste af {name, level} med int(level). Ignorer invalide entries."""
+    levels = []
+    for item in items or []:
+        name = item.get("name") if isinstance(item, dict) else None
+        level = item.get("level") if isinstance(item, dict) else None
+        if name is None or level is None:
+            continue
+        try:
+            levels.append({"name": name, "level": int(level)})
+        except (TypeError, ValueError):
+            continue
+    return levels
+
+
 def fetch_levels():
     """Kør Rust-programmet og få liste af {name, level}."""
     if not RUST_BINARY.exists():
@@ -20,63 +35,36 @@ def fetch_levels():
             "Har du kørt `cargo build --release` i sf_fetcher-mappen?"
         )
 
-    result = subprocess.run(
-        [str(RUST_BINARY)],
-        capture_output=True,
-        cwd=str(RUST_BINARY.parent),
-        text=False,
-    )
-
-    if result.returncode != 0:
-        stderr_txt = ""
-        if result.stderr:
-            try:
-                stderr_txt = result.stderr.decode("utf-8", errors="replace")
-            except Exception:
-                stderr_txt = repr(result.stderr)
-
+    try:
+        result = subprocess.run(
+            [str(RUST_BINARY)],
+            cwd=str(RUST_BINARY.parent),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr or ""
         raise RuntimeError(
             "Rust-program fejlede.\n"
-            f"Exit code: {result.returncode}\n"
-            f"STDERR:\n{stderr_txt}"
-        )
-
-    if result.stdout is None:
-        raise RuntimeError("Rust-programmet gav intet output på STDOUT.")
+            f"Exit code: {e.returncode}\n"
+            f"STDERR:\n{stderr}"
+        ) from e
 
     try:
-        stdout_txt = result.stdout.decode("utf-8")
-    except UnicodeDecodeError as e:
-        raise RuntimeError(
-            f"Kunne ikke dekode output fra Rust som UTF-8:\n{e}\n"
-            f"Raw bytes (forkortet): {result.stdout[:100]!r}"
-        )
-
-    try:
-        data = json.loads(stdout_txt)
+        data = json.loads(result.stdout)
     except json.JSONDecodeError as e:
         raise ValueError(
             f"Kunne ikke parse JSON fra Rust-programmet:\n{e}\n"
-            f"Output var (forkortet):\n{stdout_txt[:500]}"
-        )
+            f"Output var (forkortet):\n{result.stdout[:500]}"
+        ) from e
 
-    levels = []
-    for item in data:
-        name = item.get("name")
-        level = item.get("level")
-        if name is None or level is None:
-            continue
-        levels.append({"name": name, "level": int(level)})
-
-    return levels
+    return _normalize_levels(data)
 
 
 def load_previous_levels():
-    """Læs snapshot fra sidste kørsel.
-
-    Returnerer dict: name -> level
-    eller None hvis der ikke findes tidligere data.
-    """
+    """Læs snapshot fra sidste kørsel. Returnerer dict: name -> level, eller None."""
     if not SNAPSHOT_PATH.exists():
         return None
 
@@ -84,13 +72,8 @@ def load_previous_levels():
         data = json.load(f)
 
     prev = {}
-    for item in data:
-        name = item.get("name")
-        level = item.get("level")
-        if name is None or level is None:
-            continue
-        prev[name] = int(level)
-
+    for item in _normalize_levels(data):
+        prev[item["name"]] = item["level"]
     return prev
 
 
@@ -102,16 +85,11 @@ def save_today_levels(levels):
 
 
 def get_active_players(prev_levels, current_levels):
-    """Returnér liste over spillere, der er steget i level siden sidst.
-
-    Hver entry: {name, from, to, delta}
-    """
-    if prev_levels is None:
-        # Første gang scriptet kører – ingen sammenligning mulig
+    """Returnér liste over spillere, der er steget i level siden sidst."""
+    if not prev_levels:
         return []
 
     active = []
-
     for m in current_levels:
         name = m["name"]
         lvl_today = m["level"]
@@ -121,37 +99,47 @@ def get_active_players(prev_levels, current_levels):
             continue
 
         if lvl_today > lvl_prev:
-            active.append({
-                "name": name,
-                "from": lvl_prev,
-                "to": lvl_today,
-                "delta": lvl_today - lvl_prev,
-            })
-
+            active.append(
+                {"name": name, "from": lvl_prev, "to": lvl_today, "delta": lvl_today - lvl_prev}
+            )
     return active
+
+
+def print_top_progress_by_groups(active_players, top_n=10):
+    """Print top udvikling (delta) i to grupper baseret på spillerens 'to' level."""
+    active_sorted = sorted(active_players, key=lambda x: x["delta"], reverse=True)
+
+    groups = [
+        ("Level 100+", [p for p in active_sorted if p["to"] >= 100][:top_n]),
+        ("Level 50-99", [p for p in active_sorted if 50 <= p["to"] < 100][:top_n]),
+    ]
+
+    for title, players in groups:
+        print(f"\n=== Top {top_n} mest udviklede ({title}) ===")
+        if not players:
+            print("Ingen spillere i denne gruppe har udviklet sig siden sidst.")
+            continue
+        for i, p in enumerate(players, start=1):
+            print(
+                f"{i:2d}. {p['name']:<20} "
+                f"{p['from']:>4} → {p['to']:<4} "
+                f"(+{p['delta']})"
+            )
 
 
 def main():
     current_levels = fetch_levels()
+
+    # Optional guard mod at overskrive snapshot med tom/underlig data
+    if not current_levels:
+        return
+
     prev_levels = load_previous_levels()
     save_today_levels(current_levels)
 
     active_players = get_active_players(prev_levels, current_levels)
-
-    if not active_players:
-        print("\n=== Ingen spillere har udviklet sig siden sidst (eller første kørsel) ===")
-        return
-
-    active_sorted = sorted(active_players, key=lambda x: x["delta"], reverse=True)
-    top_50 = active_sorted[:50]
-
-    print("\n=== Top 50 mest udviklede siden i går ===")
-    for i, p in enumerate(top_50, start=1):
-        print(
-            f"{i:2d}. {p['name']:<20} "
-            f"{p['from']:>4} → {p['to']:<4} "
-            f"(+{p['delta']})"
-        )
+    if active_players:
+        print_top_progress_by_groups(active_players, top_n=10)
 
 
 if __name__ == "__main__":
