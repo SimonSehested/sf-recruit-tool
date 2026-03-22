@@ -45,7 +45,7 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
 
-          git add data/levels_latest.json
+          git add data/levels_latest.json data/history/
           git commit -m "Daily levels snapshot" || echo "No changes"
 
           git push
